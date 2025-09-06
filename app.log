@@ -1,0 +1,2 @@
+2025-09-04 23:22:02,846 [ERROR] Error initializing OpenAI client: Client.__init__() got an unexpected keyword argument 'proxies'
+2025-09-04 23:22:02,846 [ERROR] Error initializing OpenAI client: Client.__init__() got an unexpected keyword argument 'proxies'

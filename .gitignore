@@ -1,0 +1,25 @@
+# Environment and IDE files
+.env
+.venv
+venv/
+env/
+.idea/
+.vscode/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Project specific
+data/appointments.xlsx
+data/patients.csv
+data/appointment_report.xlsx
+data/doctor_schedules.xlsx
+
+# OS specific
+.DS_Store
+Thumbs.db
