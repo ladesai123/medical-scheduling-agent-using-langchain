@@ -1350,5 +1350,31 @@
       "phone": ""
     },
     "is_new_patient": true
+  },
+  {
+    "patient_id": "P0053",
+    "first_name": "Mike",
+    "last_name": "Johnson",
+    "email": "Mike Johnson",
+    "phone": "",
+    "date_of_birth": "",
+    "address": {
+      "street": "",
+      "city": "",
+      "state": "",
+      "zip_code": ""
+    },
+    "insurance": {
+      "provider": "Mike Johnson",
+      "policy_number": "",
+      "group_number": ""
+    },
+    "medical_history": [],
+    "emergency_contact": {
+      "name": "",
+      "relationship": "",
+      "phone": ""
+    },
+    "is_new_patient": true
   }
 ]
