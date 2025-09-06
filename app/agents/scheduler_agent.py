@@ -18,7 +18,20 @@ class SchedulerAgent:
         self.llm = llm
         self.data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
         self.conversation_state = {}
+        self.conversation_history = []
         self.current_patient = None
+        
+        # Initialize LangChain assistant if available
+        try:
+            from app.agents.langchain_assistant import MedicalSchedulingChain
+            self.langchain_assistant = MedicalSchedulingChain(llm)
+            self.use_langchain = True
+            logger.info("LangChain assistant initialized successfully")
+        except ImportError as e:
+            logger.warning(f"LangChain not available, using rule-based responses: {e}")
+            self.langchain_assistant = None
+            self.use_langchain = False
+        
         logger.info("SchedulerAgent initialized")
     
     def load_data(self, filename: str) -> List[Dict]:
@@ -408,17 +421,122 @@ class SchedulerAgent:
     def generate_response(self, user_input: str) -> str:
         """Generate a response to user input."""
         try:
-            # Analyze the input
+            # Store the input in conversation history
+            self.conversation_history.append({"role": "user", "content": user_input})
+            
+            # Analyze the input for intent detection (still needed for appointment actions)
             analysis = self.analyze_user_input(user_input)
             
-            # Always use rule-based responses now to ensure consistency
-            # The LLM integration can be improved later with better error handling
-            response = self._generate_rule_based_response(user_input, analysis)
+            # For appointment booking/modification, use rule-based logic for actions
+            # but LangChain for natural conversation
+            if analysis["intent"] in ["modify_appointment"] or self._is_action_step():
+                response = self._generate_rule_based_response(user_input, analysis)
+            elif self.use_langchain and self.langchain_assistant:
+                # Use LangChain for natural conversation
+                try:
+                    response = self.langchain_assistant.generate_response(
+                        user_input, 
+                        self.conversation_state,
+                        self.conversation_history
+                    )
+                    
+                    # Update conversation state based on response
+                    self._update_conversation_state_from_response(user_input, response)
+                    
+                except Exception as e:
+                    logger.error(f"LangChain error, falling back to rules: {e}")
+                    response = self._generate_rule_based_response(user_input, analysis)
+            else:
+                # Fallback to rule-based responses
+                response = self._generate_rule_based_response(user_input, analysis)
+            
+            # Store the response in conversation history
+            self.conversation_history.append({"role": "assistant", "content": response})
+            
+            # Keep conversation history manageable
+            if len(self.conversation_history) > 20:
+                self.conversation_history = self.conversation_history[-20:]
+            
             return response
             
         except Exception as e:
             logger.error(f"Error generating response: {e}")
             return "I apologize, but I'm experiencing some technical difficulties. Please try again."
+    
+    def _is_action_step(self) -> bool:
+        """Check if we're in a step that requires specific action logic."""
+        action_steps = [
+            "email_collection", "select_appointment_cancel", "select_appointment_reschedule", 
+            "reschedule_datetime", "modification_type"
+        ]
+        return self.conversation_state.get("conversation_step") in action_steps
+    
+    def _update_conversation_state_from_response(self, user_input: str, response: str) -> None:
+        """Update conversation state based on LangChain response patterns."""
+        current_step = self.conversation_state.get("conversation_step", "initial")
+        
+        # Detect conversation flow from LangChain responses
+        if current_step == "initial" and "full name" in response.lower():
+            self.conversation_state["conversation_step"] = "name_requested"
+        elif current_step == "name_requested" and "type of doctor" in response.lower():
+            # Extract name from user input
+            name_input = user_input.strip()
+            if name_input.lower().startswith("my name is "):
+                name_input = name_input[11:]
+            elif name_input.lower().startswith("i'm "):
+                name_input = name_input[4:]
+            elif name_input.lower().startswith("i am "):
+                name_input = name_input[5:]
+            self.conversation_state["patient_name"] = name_input.strip()
+            self.conversation_state["conversation_step"] = "appointment_type"
+        elif current_step == "appointment_type" and "when would" in response.lower():
+            self.conversation_state["specialty"] = user_input.strip()
+            self.conversation_state["conversation_step"] = "datetime_preference"
+        elif current_step == "datetime_preference" and "insurance" in response.lower():
+            self._parse_datetime_preference(user_input)
+            self.conversation_state["conversation_step"] = "insurance_info"
+        elif current_step == "insurance_info" and "email" in response.lower():
+            self.conversation_state["insurance_provider"] = user_input.strip()
+            self.conversation_state["conversation_step"] = "email_collection"
+    
+    def _parse_datetime_preference(self, user_input: str) -> None:
+        """Parse date and time preferences from user input."""
+        date_time_input = user_input.lower().strip()
+        date_pref = "tomorrow"  # default
+        time_pref = "10:00 AM"  # default
+        
+        # Extract date preferences
+        if "tomorrow" in date_time_input:
+            date_pref = "tomorrow"
+        elif "today" in date_time_input:
+            date_pref = "today"
+        elif "next week" in date_time_input:
+            date_pref = "next week"
+        elif "monday" in date_time_input:
+            date_pref = "next Monday"
+        elif "tuesday" in date_time_input:
+            date_pref = "next Tuesday"
+        elif "wednesday" in date_time_input:
+            date_pref = "next Wednesday"
+        elif "thursday" in date_time_input:
+            date_pref = "next Thursday"
+        elif "friday" in date_time_input:
+            date_pref = "next Friday"
+        else:
+            date_pref = user_input.strip()
+        
+        # Extract time preferences
+        if "morning" in date_time_input:
+            time_pref = "9:00 AM"
+        elif "afternoon" in date_time_input:
+            time_pref = "2:00 PM"
+        elif "evening" in date_time_input:
+            time_pref = "5:00 PM"
+        elif "noon" in date_time_input:
+            time_pref = "12:00 PM"
+        
+        self.conversation_state["date_preference"] = date_pref
+        self.conversation_state["time_preference"] = time_pref
     
     def _generate_rule_based_response(self, user_input: str, analysis: Dict) -> str:
         """Generate rule-based responses when LLM is not available."""
