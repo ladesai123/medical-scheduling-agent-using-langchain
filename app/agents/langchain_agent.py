@@ -25,10 +25,11 @@ logger = logging.getLogger(__name__)
 class LangChainMedicalAgent:
     """LangChain-powered Medical Scheduling Agent with advanced tools."""
     
-    def __init__(self, llm=None, api_key=None):
+    def __init__(self, llm=None, api_key=None, provider="gemini"):
         """Initialize the LangChain agent with tools."""
         self.data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
         self.conversation_state = {}
+        self.provider = provider
         
         # Initialize managers
         self.calendar_manager = CalendarManager(self.data_dir)
@@ -37,14 +38,31 @@ class LangChainMedicalAgent:
         # Initialize LLM
         if llm is None and api_key:
             try:
-                self.llm = ChatOpenAI(
-                    model="gpt-3.5-turbo",
-                    temperature=0.3,
-                    api_key=api_key
-                )
-                logger.info("ChatOpenAI initialized successfully")
+                if provider == "gemini":
+                    # Try LangChain Google GenAI first
+                    try:
+                        from langchain_google_genai import ChatGoogleGenerativeAI
+                        self.llm = ChatGoogleGenerativeAI(
+                            model="gemini-1.5-flash",
+                            temperature=0.3,
+                            google_api_key=api_key
+                        )
+                        logger.info("ChatGoogleGenerativeAI initialized successfully")
+                    except ImportError:
+                        # Fallback to custom Gemini wrapper
+                        from app.utils.simple_gemini import SimpleGeminiClient
+                        gemini_client = SimpleGeminiClient(api_key)
+                        self.llm = GeminiLangChainWrapper(gemini_client)
+                        logger.info("Custom Gemini LangChain wrapper initialized")
+                else:  # provider == "openai"
+                    self.llm = ChatOpenAI(
+                        model="gpt-3.5-turbo",
+                        temperature=0.3,
+                        api_key=api_key
+                    )
+                    logger.info("ChatOpenAI initialized successfully")
             except Exception as e:
-                logger.error(f"Failed to initialize ChatOpenAI: {e}")
+                logger.error(f"Failed to initialize {provider} LLM: {e}")
                 raise
         else:
             self.llm = llm
@@ -53,7 +71,7 @@ class LangChainMedicalAgent:
         self.tools = self._create_tools()
         self.agent_executor = self._create_agent()
         
-        logger.info("LangChainMedicalAgent initialized")
+        logger.info(f"LangChainMedicalAgent initialized with {provider}")
     
     def _create_tools(self):
         """Create LangChain tools for medical scheduling."""
@@ -481,8 +499,20 @@ Use the available tools to search for patients, check doctor availability, book 
                 ("placeholder", "{agent_scratchpad}")
             ])
             
-            # Create the agent
-            agent = create_openai_tools_agent(self.llm, self.tools, prompt)
+            # Create the agent - use different agent types based on provider
+            if self.provider == "gemini":
+                # For Gemini, we may need to use a different agent creation method
+                try:
+                    # Try to use OpenAI tools agent anyway - it might work
+                    agent = create_openai_tools_agent(self.llm, self.tools, prompt)
+                except Exception as e:
+                    logger.warning(f"Could not create OpenAI tools agent for Gemini: {e}")
+                    # Create a simple reactive agent as fallback
+                    from langchain.agents import create_react_agent
+                    agent = create_react_agent(self.llm, self.tools, prompt)
+            else:
+                # For OpenAI, use the standard OpenAI tools agent
+                agent = create_openai_tools_agent(self.llm, self.tools, prompt)
             
             # Create agent executor
             agent_executor = AgentExecutor(
@@ -534,18 +564,76 @@ Use the available tools to search for patients, check doctor availability, book 
         except Exception as e:
             logger.error(f"Error saving {filename}: {e}")
 
+
+class GeminiLangChainWrapper:
+    """Wrapper to make SimpleGeminiClient compatible with LangChain."""
+    
+    def __init__(self, gemini_client):
+        self.client = gemini_client
+        self.model_name = "gemini-1.5-flash"
+    
+    def invoke(self, messages, **kwargs):
+        """Invoke method for LangChain compatibility."""
+        # Convert LangChain messages to our format
+        converted_messages = []
+        for message in messages:
+            if hasattr(message, 'content'):
+                if hasattr(message, 'type'):
+                    role = "system" if message.type == "system" else "user" if message.type == "human" else "assistant"
+                else:
+                    role = "user"  # Default to user
+                converted_messages.append({"role": role, "content": message.content})
+            elif isinstance(message, dict):
+                converted_messages.append(message)
+        
+        try:
+            response_data = self.client.create_completion(
+                model=self.model_name,
+                messages=converted_messages,
+                temperature=kwargs.get('temperature', 0.7),
+                max_tokens=kwargs.get('max_tokens', 500)
+            )
+            
+            # Return the content directly
+            from app.utils.simple_gemini import SimpleGeminiResponse
+            response = SimpleGeminiResponse(response_data)
+            
+            # Create a simple response object that LangChain can use
+            class SimpleAIMessage:
+                def __init__(self, content):
+                    self.content = content
+                    self.type = "ai"
+            
+            return SimpleAIMessage(response.choices[0].message.content)
+            
+        except Exception as e:
+            logger.error(f"Error in GeminiLangChainWrapper: {e}")
+            # Return a fallback response
+            class SimpleAIMessage:
+                def __init__(self, content):
+                    self.content = content
+                    self.type = "ai"
+            return SimpleAIMessage("I'm sorry, I'm having trouble processing your request right now. Please try again later.")
+
+
 if __name__ == "__main__":
     # Test the LangChain agent
     print("Testing LangChain Medical Agent...")
     
     try:
-        # Get API key from environment
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            print("OPENAI_API_KEY not found. Please set it in your .env file.")
-            exit(1)
+        # Check for Gemini API key first
+        gemini_key = os.getenv("GEMINI_API_KEY")
+        openai_key = os.getenv("OPENAI_API_KEY")
         
-        agent = LangChainMedicalAgent(api_key=api_key)
+        if gemini_key:
+            print("Using Gemini API...")
+            agent = LangChainMedicalAgent(api_key=gemini_key, provider="gemini")
+        elif openai_key:
+            print("Using OpenAI API...")
+            agent = LangChainMedicalAgent(api_key=openai_key, provider="openai")
+        else:
+            print("No API key found. Please set GEMINI_API_KEY or OPENAI_API_KEY in your .env file.")
+            exit(1)
         
         # Test conversation
         test_inputs = [
