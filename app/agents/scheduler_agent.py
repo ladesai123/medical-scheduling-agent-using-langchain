@@ -126,7 +126,7 @@ class SchedulerAgent:
     
     def analyze_user_input(self, user_input: str) -> Dict[str, Any]:
         """Analyze user input to extract intent and entities."""
-        input_lower = user_input.lower()
+        input_lower = user_input.lower().strip()
         
         analysis = {
             "intent": "general",
@@ -134,13 +134,22 @@ class SchedulerAgent:
             "needs_info": []
         }
         
+        # Handle empty input
+        if not input_lower:
+            analysis["intent"] = "empty"
+            return analysis
+        
         # Detect intent
-        if any(word in input_lower for word in ["schedule", "book", "appointment", "see doctor"]):
+        if any(word in input_lower for word in ["schedule", "book", "appointment", "see doctor", "need"]):
             analysis["intent"] = "schedule_appointment"
         elif any(word in input_lower for word in ["cancel", "reschedule"]):
             analysis["intent"] = "modify_appointment"
-        elif any(word in input_lower for word in ["hello", "hi", "help"]):
+        elif any(word in input_lower for word in ["hello", "hi", "help", "start"]):
             analysis["intent"] = "greeting"
+        elif any(word in input_lower for word in ["yes", "yeah", "ok", "okay"]):
+            analysis["intent"] = "confirmation"
+        elif any(word in input_lower for word in ["no", "nope", "nothing"]):
+            analysis["intent"] = "negative"
         
         # Extract entities (simplified)
         # In a real system, you'd use NLP libraries for better entity extraction
@@ -157,6 +166,13 @@ class SchedulerAgent:
             if keyword in input_lower:
                 analysis["entities"]["time_preference"] = keyword
         
+        # Look for specialties
+        specialties = ["cardiologist", "dermatologist", "neurologist", "orthopedist", 
+                      "pediatrician", "psychiatrist", "general", "family"]
+        for specialty in specialties:
+            if specialty in input_lower:
+                analysis["entities"]["specialty"] = specialty
+        
         return analysis
     
     def generate_response(self, user_input: str) -> str:
@@ -165,20 +181,9 @@ class SchedulerAgent:
             # Analyze the input
             analysis = self.analyze_user_input(user_input)
             
-            # Use LLM if available, otherwise use rule-based responses
-            if self.llm:
-                # Create context for the LLM
-                context = f"""
-                User input: {user_input}
-                Intent: {analysis['intent']}
-                Entities: {analysis['entities']}
-                Current conversation state: {self.conversation_state}
-                """
-                
-                response = self.llm.generate_response(context)
-            else:
-                response = self._generate_rule_based_response(user_input, analysis)
-            
+            # Always use rule-based responses now to ensure consistency
+            # The LLM integration can be improved later with better error handling
+            response = self._generate_rule_based_response(user_input, analysis)
             return response
             
         except Exception as e:
@@ -188,24 +193,90 @@ class SchedulerAgent:
     def _generate_rule_based_response(self, user_input: str, analysis: Dict) -> str:
         """Generate rule-based responses when LLM is not available."""
         intent = analysis["intent"]
+        input_lower = user_input.lower().strip()
         
-        if intent == "greeting":
+        # Handle empty input
+        if intent == "empty":
+            return "Please enter a message or type 'exit' to quit."
+        
+        # Track conversation progress
+        if "conversation_step" not in self.conversation_state:
+            self.conversation_state["conversation_step"] = "initial"
+        
+        current_step = self.conversation_state["conversation_step"]
+        
+        # Handle greetings or start of conversation
+        if intent == "greeting" and current_step == "initial":
+            self.conversation_state["conversation_step"] = "name_requested"
             return ("Hello! Welcome to our medical scheduling system. "
                    "I'm here to help you schedule an appointment. "
-                   "Could you please tell me your name?")
+                   "Could you please tell me your full name?")
         
-        elif intent == "schedule_appointment":
+        # Handle name collection - if not obviously an intent, treat as name
+        elif current_step == "name_requested":
+            if intent not in ["schedule_appointment", "modify_appointment", "greeting"]:
+                # Assume this is a name
+                self.conversation_state["patient_name"] = user_input.strip()
+                self.conversation_state["conversation_step"] = "appointment_type"
+                return (f"Thank you, {user_input.strip()}. "
+                       "What type of doctor would you like to see? For example: "
+                       "cardiologist, dermatologist, general practitioner, etc.")
+            elif intent == "schedule_appointment":
+                # Fall through to appointment handling
+                pass
+        
+        # Handle appointment scheduling
+        if intent == "schedule_appointment" or current_step == "appointment_type":
             if "patient_name" not in self.conversation_state:
+                self.conversation_state["conversation_step"] = "name_requested"
                 return ("I'd be happy to help you schedule an appointment. "
-                       "Could you please tell me your full name?")
+                       "Could you please tell me your full name first?")
             else:
-                return ("Great! What type of doctor would you like to see, "
-                       "and do you have a preferred date and time?")
+                self.conversation_state["conversation_step"] = "datetime_preference"
+                
+                # Extract specialty if mentioned
+                specialty = analysis["entities"].get("specialty")
+                if specialty:
+                    return (f"Great! I'll help you find a {specialty}. "
+                           "When would you prefer your appointment? "
+                           "Please provide your preferred date and time.")
+                else:
+                    return ("What type of doctor would you like to see? "
+                           "We have cardiologists, dermatologists, general practitioners, "
+                           "and many other specialists available.")
         
+        # Handle date/time preferences
+        elif current_step == "datetime_preference":
+            self.conversation_state["conversation_step"] = "insurance_info"
+            date_pref = analysis["entities"].get("date_preference", "your preferred time")
+            time_pref = analysis["entities"].get("time_preference", "")
+            return (f"Perfect! I'll check our availability for {date_pref} {time_pref}. "
+                   "Before I confirm your appointment, could you please provide "
+                   "your insurance information? What insurance provider do you have?")
+        
+        # Handle insurance information
+        elif current_step == "insurance_info":
+            self.conversation_state["conversation_step"] = "confirmation"
+            return ("Thank you for providing your insurance information. "
+                   "Let me book your appointment now. "
+                   "I'll send you a confirmation with all the details shortly. "
+                   "Is there anything else I can help you with today?")
+        
+        # Handle appointment modifications
         elif intent == "modify_appointment":
             return ("I can help you with appointment changes. "
                    "Could you please provide your name and current appointment details?")
         
+        # Handle completion
+        elif current_step == "confirmation":
+            if intent == "negative" or any(word in input_lower for word in ["no", "nothing", "bye", "goodbye", "thanks", "thank you"]):
+                self.conversation_state = {}  # Reset for next conversation
+                return ("You're welcome! Have a great day and see you at your appointment!")
+            else:
+                return ("How else can I assist you today? I can help with scheduling, "
+                       "rescheduling, or answering questions about our services.")
+        
+        # Default response
         else:
             return ("I'm here to help with scheduling medical appointments. "
                    "You can ask me to schedule a new appointment, cancel an existing one, "

@@ -46,7 +46,14 @@ class SimpleOpenAIClient:
                 
         except urllib.error.HTTPError as e:
             error_body = e.read().decode('utf-8') if hasattr(e, 'read') else str(e)
-            raise Exception(f"OpenAI API error {e.code}: {error_body}")
+            if e.code == 429:
+                raise Exception(f"Rate limit exceeded (429): {error_body}")
+            elif e.code == 401:
+                raise Exception(f"Authentication failed (401): Check your API key")
+            elif e.code == 403:
+                raise Exception(f"Forbidden (403): {error_body}")
+            else:
+                raise Exception(f"OpenAI API error {e.code}: {error_body}")
         except urllib.error.URLError as e:
             raise Exception(f"Network error: {e}")
         except Exception as e:

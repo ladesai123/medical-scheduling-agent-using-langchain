@@ -84,6 +84,7 @@ class MockLLM:
     
     def __init__(self):
         self.model_name = "mock-llm"
+        self.api_failed = True  # Mock LLM represents a failed API state
         logger.info("MockLLM initialized")
     
     def generate_response(self, prompt: str) -> str:
@@ -126,10 +127,18 @@ class MockLLMWithSimpleOpenAI:
     def __init__(self, simple_openai_client):
         self.client = simple_openai_client
         self.model_name = "gpt-3.5-turbo"
+        self.api_failed = False  # Track if API has failed
+        self.fallback_llm = None
         logger.info("MockLLMWithSimpleOpenAI initialized with simple OpenAI client")
     
     def generate_response(self, prompt: str) -> str:
         """Generate a response using our simple OpenAI client."""
+        # If API has already failed, use fallback directly
+        if self.api_failed:
+            if self.fallback_llm is None:
+                self.fallback_llm = MockLLM()
+            return self.fallback_llm.generate_response(prompt)
+        
         try:
             from app.utils.simple_openai import SimpleOpenAIResponse
             
@@ -160,9 +169,13 @@ class MockLLMWithSimpleOpenAI:
             
         except Exception as e:
             logger.error(f"Error calling simple OpenAI client: {e}")
-            # Fallback to mock responses
-            fallback_llm = MockLLM()
-            return fallback_llm.generate_response(prompt)
+            # Mark API as failed to avoid repeated attempts
+            self.api_failed = True
+            # Initialize fallback if not already done
+            if self.fallback_llm is None:
+                self.fallback_llm = MockLLM()
+                logger.info("Switching to MockLLM due to API failure")
+            return self.fallback_llm.generate_response(prompt)
 
 
 class MockLLMWithOpenAI:
@@ -171,10 +184,18 @@ class MockLLMWithOpenAI:
     def __init__(self, openai_client):
         self.client = openai_client
         self.model_name = "gpt-3.5-turbo"
+        self.api_failed = False  # Track if API has failed
+        self.fallback_llm = None
         logger.info("MockLLMWithOpenAI initialized with OpenAI client")
     
     def generate_response(self, prompt: str) -> str:
         """Generate a response using OpenAI."""
+        # If API has already failed, use fallback directly
+        if self.api_failed:
+            if self.fallback_llm is None:
+                self.fallback_llm = MockLLM()
+            return self.fallback_llm.generate_response(prompt)
+        
         try:
             system_message = """You are a helpful medical appointment scheduling assistant. 
             You help patients schedule appointments, collect necessary information, and answer questions about the medical practice.
@@ -202,9 +223,13 @@ class MockLLMWithOpenAI:
             
         except Exception as e:
             logger.error(f"Error calling OpenAI API: {e}")
-            # Fallback to mock responses
-            fallback_llm = MockLLM()
-            return fallback_llm.generate_response(prompt)
+            # Mark API as failed to avoid repeated attempts
+            self.api_failed = True
+            # Initialize fallback if not already done
+            if self.fallback_llm is None:
+                self.fallback_llm = MockLLM()
+                logger.info("Switching to MockLLM due to API failure")
+            return self.fallback_llm.generate_response(prompt)
 
 
 # Configuration constants

@@ -65,7 +65,7 @@ def main():
     )
     
     st.title("🏥 Medical Scheduling Agent")
-    st.subtitle("AI-Powered Appointment Scheduling System")
+    st.markdown("### AI-Powered Appointment Scheduling System")
     
     # Initialize session state
     if 'agent' not in st.session_state:
