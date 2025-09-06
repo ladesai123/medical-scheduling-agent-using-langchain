@@ -1,0 +1,337 @@
+[
+  {
+    "doctor_id": "D001",
+    "first_name": "Julia",
+    "last_name": "Adams",
+    "specialty": "Anesthesiology",
+    "phone": "(438) 464-7758",
+    "email": "dr.julia.adams@clinic.com",
+    "schedule": {
+      "Monday": {
+        "start_time": "08:00",
+        "end_time": "16:00",
+        "lunch_break": "12:00-13:00"
+      },
+      "Tuesday": {
+        "start_time": "09:00",
+        "end_time": "18:00",
+        "lunch_break": "12:00-13:00"
+      },
+      "Wednesday": {
+        "start_time": "10:00",
+        "end_time": "18:00",
+        "lunch_break": "12:00-13:00"
+      },
+      "Thursday": {
+        "start_time": "08:00",
+        "end_time": "16:00",
+        "lunch_break": "12:00-13:00"
+      },
+      "Friday": {
+        "start_time": "09:00",
+        "end_time": "16:00",
+        "lunch_break": "12:00-13:00"
+      }
+    },
+    "appointment_duration": {
+      "new_patient": 60,
+      "returning_patient": 30
+    }
+  },
+  {
+    "doctor_id": "D002",
+    "first_name": "Isaac",
+    "last_name": "Green",
+    "specialty": "Psychiatry",
+    "phone": "(844) 992-7117",
+    "email": "dr.isaac.green@clinic.com",
+    "schedule": {
+      "Tuesday": {
+        "start_time": "09:00",
+        "end_time": "16:00",
+        "lunch_break": "12:00-13:00"
+      },
+      "Wednesday": {
+        "start_time": "08:00",
+        "end_time": "16:00",
+        "lunch_break": "12:00-13:00"
+      },
+      "Thursday": {
+        "start_time": "10:00",
+        "end_time": "17:00",
+        "lunch_break": "12:00-13:00"
+      },
+      "Friday": {
+        "start_time": "09:00",
+        "end_time": "17:00",
+        "lunch_break": "12:00-13:00"
+      }
+    },
+    "appointment_duration": {
+      "new_patient": 60,
+      "returning_patient": 30
+    }
+  },
+  {
+    "doctor_id": "D003",
+    "first_name": "Marcus",
+    "last_name": "Nelson",
+    "specialty": "Emergency Medicine",
+    "phone": "(460) 841-9819",
+    "email": "dr.marcus.nelson@clinic.com",
+    "schedule": {
+      "Monday": {
+        "start_time": "10:00",
+        "end_time": "18:00",
+        "lunch_break": "12:00-13:00"
+      },
+      "Tuesday": {
+        "start_time": "08:00",
+        "end_time": "17:00",
+        "lunch_break": "12:00-13:00"
+      },
+      "Wednesday": {
+        "start_time": "09:00",
+        "end_time": "18:00",
+        "lunch_break": "12:00-13:00"
+      },
+      "Friday": {
+        "start_time": "10:00",
+        "end_time": "17:00",
+        "lunch_break": "12:00-13:00"
+      }
+    },
+    "appointment_duration": {
+      "new_patient": 60,
+      "returning_patient": 30
+    }
+  },
+  {
+    "doctor_id": "D004",
+    "first_name": "Helena",
+    "last_name": "Davis",
+    "specialty": "Radiology",
+    "phone": "(884) 410-7960",
+    "email": "dr.helena.davis@clinic.com",
+    "schedule": {
+      "Monday": {
+        "start_time": "08:00",
+        "end_time": "18:00",
+        "lunch_break": "12:00-13:00"
+      },
+      "Wednesday": {
+        "start_time": "08:00",
+        "end_time": "16:00",
+        "lunch_break": "12:00-13:00"
+      },
+      "Thursday": {
+        "start_time": "10:00",
+        "end_time": "17:00",
+        "lunch_break": "12:00-13:00"
+      },
+      "Friday": {
+        "start_time": "08:00",
+        "end_time": "16:00",
+        "lunch_break": "12:00-13:00"
+      }
+    },
+    "appointment_duration": {
+      "new_patient": 60,
+      "returning_patient": 30
+    }
+  },
+  {
+    "doctor_id": "D005",
+    "first_name": "Laura",
+    "last_name": "King",
+    "specialty": "Dermatology",
+    "phone": "(444) 201-3873",
+    "email": "dr.laura.king@clinic.com",
+    "schedule": {
+      "Wednesday": {
+        "start_time": "08:00",
+        "end_time": "17:00",
+        "lunch_break": "12:00-13:00"
+      },
+      "Thursday": {
+        "start_time": "10:00",
+        "end_time": "18:00",
+        "lunch_break": "12:00-13:00"
+      },
+      "Friday": {
+        "start_time": "09:00",
+        "end_time": "18:00",
+        "lunch_break": "12:00-13:00"
+      }
+    },
+    "appointment_duration": {
+      "new_patient": 60,
+      "returning_patient": 30
+    }
+  },
+  {
+    "doctor_id": "D006",
+    "first_name": "Helena",
+    "last_name": "Jackson",
+    "specialty": "Pediatrics",
+    "phone": "(654) 915-7993",
+    "email": "dr.helena.jackson@clinic.com",
+    "schedule": {
+      "Monday": {
+        "start_time": "09:00",
+        "end_time": "17:00",
+        "lunch_break": "12:00-13:00"
+      },
+      "Tuesday": {
+        "start_time": "08:00",
+        "end_time": "16:00",
+        "lunch_break": "12:00-13:00"
+      },
+      "Wednesday": {
+        "start_time": "08:00",
+        "end_time": "17:00",
+        "lunch_break": "12:00-13:00"
+      },
+      "Thursday": {
+        "start_time": "08:00",
+        "end_time": "18:00",
+        "lunch_break": "12:00-13:00"
+      },
+      "Friday": {
+        "start_time": "08:00",
+        "end_time": "16:00",
+        "lunch_break": "12:00-13:00"
+      }
+    },
+    "appointment_duration": {
+      "new_patient": 60,
+      "returning_patient": 30
+    }
+  },
+  {
+    "doctor_id": "D007",
+    "first_name": "Marcus",
+    "last_name": "Adams",
+    "specialty": "Pediatrics",
+    "phone": "(786) 466-2084",
+    "email": "dr.marcus.adams@clinic.com",
+    "schedule": {
+      "Monday": {
+        "start_time": "09:00",
+        "end_time": "16:00",
+        "lunch_break": "12:00-13:00"
+      },
+      "Wednesday": {
+        "start_time": "08:00",
+        "end_time": "17:00",
+        "lunch_break": "12:00-13:00"
+      },
+      "Thursday": {
+        "start_time": "09:00",
+        "end_time": "17:00",
+        "lunch_break": "12:00-13:00"
+      },
+      "Friday": {
+        "start_time": "09:00",
+        "end_time": "18:00",
+        "lunch_break": "12:00-13:00"
+      }
+    },
+    "appointment_duration": {
+      "new_patient": 60,
+      "returning_patient": 30
+    }
+  },
+  {
+    "doctor_id": "D008",
+    "first_name": "Helena",
+    "last_name": "Roberts",
+    "specialty": "Orthopedics",
+    "phone": "(841) 652-8875",
+    "email": "dr.helena.roberts@clinic.com",
+    "schedule": {
+      "Monday": {
+        "start_time": "08:00",
+        "end_time": "18:00",
+        "lunch_break": "12:00-13:00"
+      },
+      "Tuesday": {
+        "start_time": "09:00",
+        "end_time": "18:00",
+        "lunch_break": "12:00-13:00"
+      },
+      "Friday": {
+        "start_time": "10:00",
+        "end_time": "18:00",
+        "lunch_break": "12:00-13:00"
+      }
+    },
+    "appointment_duration": {
+      "new_patient": 60,
+      "returning_patient": 30
+    }
+  },
+  {
+    "doctor_id": "D009",
+    "first_name": "Kenneth",
+    "last_name": "Clark",
+    "specialty": "Radiology",
+    "phone": "(308) 205-5261",
+    "email": "dr.kenneth.clark@clinic.com",
+    "schedule": {
+      "Monday": {
+        "start_time": "10:00",
+        "end_time": "16:00",
+        "lunch_break": "12:00-13:00"
+      },
+      "Tuesday": {
+        "start_time": "08:00",
+        "end_time": "18:00",
+        "lunch_break": "12:00-13:00"
+      },
+      "Wednesday": {
+        "start_time": "10:00",
+        "end_time": "17:00",
+        "lunch_break": "12:00-13:00"
+      }
+    },
+    "appointment_duration": {
+      "new_patient": 60,
+      "returning_patient": 30
+    }
+  },
+  {
+    "doctor_id": "D010",
+    "first_name": "Gregory",
+    "last_name": "Mitchell",
+    "specialty": "Orthopedics",
+    "phone": "(982) 785-4161",
+    "email": "dr.gregory.mitchell@clinic.com",
+    "schedule": {
+      "Monday": {
+        "start_time": "09:00",
+        "end_time": "17:00",
+        "lunch_break": "12:00-13:00"
+      },
+      "Wednesday": {
+        "start_time": "08:00",
+        "end_time": "18:00",
+        "lunch_break": "12:00-13:00"
+      },
+      "Thursday": {
+        "start_time": "09:00",
+        "end_time": "18:00",
+        "lunch_break": "12:00-13:00"
+      },
+      "Friday": {
+        "start_time": "09:00",
+        "end_time": "16:00",
+        "lunch_break": "12:00-13:00"
+      }
+    },
+    "appointment_duration": {
+      "new_patient": 60,
+      "returning_patient": 30
+    }
+  }
+]
