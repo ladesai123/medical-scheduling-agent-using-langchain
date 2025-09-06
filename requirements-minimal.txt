@@ -1,0 +1,2 @@
+# Minimal requirements for basic functionality
+python-dotenv>=1.0.0
