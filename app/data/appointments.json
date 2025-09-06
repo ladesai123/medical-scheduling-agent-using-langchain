@@ -1,1 +1,26 @@
-[]
+[
+  {
+    "appointment_id": "APT0001",
+    "patient_id": "P0051",
+    "patient_name": "My name is John Smith",
+    "doctor_id": "D001",
+    "date": "next Friday",
+    "time": "2:00 PM",
+    "status": "scheduled",
+    "created_at": "2025-09-06T06:17:08.002633",
+    "type": "new_patient",
+    "rescheduled_at": "2025-09-06T06:22:13.590737"
+  },
+  {
+    "appointment_id": "APT0002",
+    "patient_id": "P0052",
+    "patient_name": "Jane Doe",
+    "doctor_id": "D005",
+    "date": "tomorrow",
+    "time": "2:00 PM",
+    "status": "cancelled",
+    "created_at": "2025-09-06T06:18:17.222379",
+    "type": "new_patient",
+    "cancelled_at": "2025-09-06T06:22:13.589940"
+  }
+]
