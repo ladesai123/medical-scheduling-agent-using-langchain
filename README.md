@@ -50,13 +50,20 @@ python main.py setup
 python main.py cli
 ```
 
-### Method 2: With OpenAI Integration
+### Method 2: With AI Integration (Gemini or OpenAI)
 ```bash
-# 1. Set up your OpenAI API key
+# 1. Get a Gemini API key (recommended - free tier available)
+# Visit: https://aistudio.google.com/app/apikey
+echo "GEMINI_API_KEY=your_gemini_api_key_here" > .env
+echo "AI_PROVIDER=gemini" >> .env
+
+# OR get OpenAI API key (alternative option)
+# Visit: https://platform.openai.com/api-keys
 echo "OPENAI_API_KEY=your_openai_api_key_here" > .env
+echo "AI_PROVIDER=openai" >> .env
 
 # 2. Install dependencies (optional - app works without them)
-pip install openai python-dotenv streamlit
+pip install google-generativeai langchain-google-genai python-dotenv streamlit
 
 # 3. Generate sample data
 python main.py setup
@@ -68,6 +75,9 @@ python main.py streamlit  # Web interface
 
 ### Method 3: Emergency Mode
 ```bash
+# For testing Gemini connectivity directly
+python fix_gemini.py
+
 # For testing OpenAI connectivity directly
 python fix_openai.py
 ```
@@ -79,6 +89,7 @@ python fix_openai.py
 | `python main.py setup` | Generate sample patients and doctors | None |
 | `python main.py cli` | Start command-line interface | None |
 | `python main.py streamlit` | Start web interface | streamlit package |
+| `python fix_gemini.py` | Test Gemini connection directly | None |
 | `python fix_openai.py` | Test OpenAI connection directly | None |
 
 ## 💡 Usage Examples
@@ -113,9 +124,9 @@ Agent: Let me check our availability for tomorrow morning...
 - **Fallback Systems**: Multiple layers of graceful degradation
 
 ### Fallback Hierarchy
-1. **Enhanced LangChain Mode**: Full LangChain agent with OpenAI + specialized tools
+1. **Enhanced LangChain Mode**: Full LangChain agent with Gemini/OpenAI + specialized tools
 2. **Mock LangChain Mode**: Enhanced rule-based agent with business logic (always works)
-3. **Standard AI Mode**: OpenAI package + API key with basic agent
+3. **Standard AI Mode**: Gemini/OpenAI package + API key with basic agent
 4. **Simple AI Mode**: Custom HTTP client + API key
 5. **Offline Mode**: Rule-based responses (always works)
 
@@ -123,7 +134,8 @@ Agent: Let me check our availability for tomorrow morning...
 ```
 medical-scheduling-agent/
 ├── main.py                 # Main entry point
-├── fix_openai.py          # Emergency OpenAI testing
+├── fix_gemini.py           # Emergency Gemini testing
+├── fix_openai.py           # Emergency OpenAI testing
 ├── requirements.txt       # Optional dependencies
 ├── .env                   # Your API keys (create this)
 ├── app/
@@ -146,20 +158,29 @@ medical-scheduling-agent/
 
 ### Environment Variables (.env file)
 ```bash
-# Required for AI features (optional for basic functionality)
+# AI Provider Configuration
+AI_PROVIDER=gemini  # Options: gemini, openai
+
+# Gemini API (recommended - free tier available)
+GEMINI_API_KEY=your_gemini_api_key_here
+
+# OpenAI API (alternative/fallback)
 OPENAI_API_KEY=your_openai_api_key_here
 
 # Optional settings
-MODEL_NAME=gpt-3.5-turbo
+MODEL_NAME=gemini-1.5-flash  # or gpt-3.5-turbo for OpenAI
 DEBUG_MODE=True
 ```
 
 ### Dependencies
 ```bash
 # Core (all optional - app works without them)
-openai>=1.10.0           # For AI responses
-python-dotenv>=1.0.0     # For .env file loading
-streamlit>=1.28.0        # For web interface
+google-generativeai>=0.7.0      # For Gemini AI responses
+langchain-google-genai>=1.0.0   # For LangChain Gemini integration
+openai>=1.10.0                  # For OpenAI AI responses (fallback)
+langchain-openai>=0.2.0         # For LangChain OpenAI integration
+python-dotenv>=1.0.0            # For .env file loading
+streamlit>=1.28.0               # For web interface
 
 # The app includes fallback implementations for all dependencies
 ```
