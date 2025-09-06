@@ -53,6 +53,8 @@ def get_gemini_api_key():
 
 def get_preferred_provider():
     """Get the preferred AI provider from environment (gemini or openai)."""
+    # Load environment first to ensure we have the latest values
+    load_environment()
     provider = os.getenv("AI_PROVIDER", "gemini").lower()
     if provider not in ["gemini", "openai"]:
         logger.warning(f"Unknown AI_PROVIDER '{provider}', defaulting to 'gemini'")

@@ -8,16 +8,71 @@ import os
 import logging
 from datetime import datetime, timedelta, date
 from typing import Dict, List, Any, Optional
-from email_validator import validate_email, EmailNotValidError
 
-from langchain.agents import AgentExecutor, create_openai_tools_agent
-from langchain.tools import tool
-from langchain_openai import ChatOpenAI
-from langchain.prompts import ChatPromptTemplate
-from langchain_core.messages import HumanMessage, SystemMessage
+# Try to import email_validator, but make it optional
+try:
+    from email_validator import validate_email, EmailNotValidError
+    EMAIL_VALIDATOR_AVAILABLE = True
+except ImportError:
+    EMAIL_VALIDATOR_AVAILABLE = False
+    # Create dummy functions as fallbacks
+    def validate_email(email):
+        # Basic validation - just check for @ symbol
+        if '@' in email and '.' in email:
+            class MockValid:
+                def __init__(self, email):
+                    self.email = email
+            return MockValid(email)
+        else:
+            raise Exception("Invalid email format")
+    
+    class EmailNotValidError(Exception):
+        pass
 
-from app.utils.calendar_manager import CalendarManager
-from app.utils.notification_manager import NotificationManager
+# Try to import LangChain components, but make them optional
+try:
+    from langchain.agents import AgentExecutor, create_openai_tools_agent
+    from langchain.tools import tool
+    from langchain_openai import ChatOpenAI
+    from langchain.prompts import ChatPromptTemplate
+    from langchain_core.messages import HumanMessage, SystemMessage
+    LANGCHAIN_AVAILABLE = True
+except ImportError:
+    LANGCHAIN_AVAILABLE = False
+    # Create dummy functions/classes as fallbacks
+    def tool(func):
+        return func
+    
+    class ChatPromptTemplate:
+        @staticmethod
+        def from_messages(messages):
+            return None
+    
+    class AgentExecutor:
+        def __init__(self, *args, **kwargs):
+            pass
+        
+        def invoke(self, inputs):
+            return {"output": "LangChain not available - using fallback mode"}
+    
+    def create_openai_tools_agent(*args, **kwargs):
+        return None
+
+# Try to import utility managers, but make them optional
+try:
+    from app.utils.calendar_manager import CalendarManager
+    from app.utils.notification_manager import NotificationManager
+    UTILS_AVAILABLE = True
+except ImportError:
+    UTILS_AVAILABLE = False
+    # Create dummy managers as fallbacks
+    class CalendarManager:
+        def __init__(self, data_dir):
+            self.data_dir = data_dir
+    
+    class NotificationManager:
+        def __init__(self, data_dir):
+            self.data_dir = data_dir
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +85,10 @@ class LangChainMedicalAgent:
         self.data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
         self.conversation_state = {}
         self.provider = provider
+        
+        # Check if LangChain is available
+        if not LANGCHAIN_AVAILABLE:
+            raise ImportError("LangChain is not available. Please install langchain packages or use the mock agent.")
         
         # Initialize managers
         self.calendar_manager = CalendarManager(self.data_dir)
