@@ -776,37 +776,5 @@ class GeminiLangChainWrapper:
             return SimpleAIMessage("I'm sorry, I'm having trouble processing your request right now. Please try again later.")
 
 
-if __name__ == "__main__":
-    # Test the LangChain agent
-    print("Testing LangChain Medical Agent...")
-    
-    try:
-        # Check for Gemini API key first
-        gemini_key = os.getenv("GEMINI_API_KEY")
-        openai_key = os.getenv("OPENAI_API_KEY")
-        
-        if gemini_key:
-            print("Using Gemini API...")
-            agent = LangChainMedicalAgent(api_key=gemini_key, provider="gemini")
-        elif openai_key:
-            print("Using OpenAI API...")
-            agent = LangChainMedicalAgent(api_key=openai_key, provider="openai")
-        else:
-            print("No API key found. Please set GEMINI_API_KEY or OPENAI_API_KEY in your .env file.")
-            exit(1)
-        
-        # Test conversation
-        test_inputs = [
-            "Hello, I need to schedule an appointment",
-            "My name is John Smith and I need to see a cardiologist",
-            "How about next Monday at 2 PM?",
-            "My insurance is Blue Cross, member ID is ABC123456"
-        ]
-        
-        for test_input in test_inputs:
-            print(f"\nUser: {test_input}")
-            response = agent.generate_response(test_input)
-            print(f"Agent: {response}")
-            
-    except Exception as e:
-        print(f"Error: {e}")
+# Test functionality is available in test_agent.py
+# Run: python test_agent.py to test the medical scheduling agent

@@ -744,28 +744,5 @@ class SchedulerAgent:
                    "or check available times. How can I assist you today?")
 
 
-if __name__ == "__main__":
-    # Test the scheduler agent
-    print("Testing SchedulerAgent...")
-    
-    try:
-        from app.config import get_llm
-        llm = get_llm()
-    except:
-        llm = None
-        print("Using rule-based responses (LLM not available)")
-    
-    agent = SchedulerAgent(llm=llm)
-    
-    # Test conversation
-    test_inputs = [
-        "Hello, I need to schedule an appointment",
-        "My name is John Smith",
-        "I need to see a cardiologist",
-        "How about tomorrow morning?"
-    ]
-    
-    for test_input in test_inputs:
-        print(f"\nUser: {test_input}")
-        response = agent.generate_response(test_input)
-        print(f"Agent: {response}")
+# Test functionality is available in test_agent.py  
+# Run: python test_agent.py to test the medical scheduling agent

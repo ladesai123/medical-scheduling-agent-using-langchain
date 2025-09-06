@@ -283,26 +283,5 @@ class MockLangChainAgent:
             return []
 
 
-if __name__ == "__main__":
-    # Test the mock agent
-    print("Testing MockLangChainAgent...")
-    
-    import sys
-    import os
-    sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-    
-    agent = MockLangChainAgent()
-    
-    test_inputs = [
-        "Hello, I need help",
-        "I need to schedule an appointment with a cardiologist", 
-        "Check availability for next week",
-        "Export appointments to Excel"
-    ]
-    
-    for test_input in test_inputs:
-        print(f"\nUser: {test_input}")
-        response = agent.generate_response(test_input)
-        print(f"Agent: {response}")
-    
-    print("\nMockLangChainAgent test completed!")
+# Test functionality is available in test_agent.py
+# Run: python test_agent.py to test the medical scheduling agent
