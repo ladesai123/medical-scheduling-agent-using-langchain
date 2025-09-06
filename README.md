@@ -43,6 +43,9 @@ This AI agent automates patient appointment scheduling for medical practices. It
 git clone https://github.com/ladesai123/medical-scheduling-agent-using-langchain.git
 cd medical-scheduling-agent-using-langchain
 
+#installing the requirements.txt
+pip install -r requirements.txt
+
 # Generate sample data
 python main.py setup
 
