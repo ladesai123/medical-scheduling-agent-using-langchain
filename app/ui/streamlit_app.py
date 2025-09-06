@@ -14,6 +14,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 try:
     from app.config import get_llm
     from app.agents.scheduler_agent import SchedulerAgent
+    from app.agents.langchain_agent import LangChainMedicalAgent
+    from app.agents.mock_langchain_agent import MockLangChainAgent
     from app.utils.data_generator import generate_patient, generate_doctor
 except ImportError as e:
     st.error(f"Import error: {e}")
@@ -223,11 +225,25 @@ def main():
     if 'agent' not in st.session_state:
         try:
             llm = get_llm()
-            st.session_state.agent = SchedulerAgent(llm=llm)
-            st.success("✅ AI Medical Assistant initialized successfully!", icon="🤖")
+            
+            # Check if we got a LangChain agent directly
+            if isinstance(llm, (LangChainMedicalAgent, MockLangChainAgent)):
+                st.session_state.agent = llm
+                agent_type = "Enhanced LangChain" if isinstance(llm, LangChainMedicalAgent) else "Enhanced Mock LangChain"
+                st.success(f"✅ {agent_type} AI Medical Assistant initialized successfully!", icon="🤖")
+            else:
+                st.session_state.agent = SchedulerAgent(llm=llm)
+                st.success("✅ AI Medical Assistant initialized successfully!", icon="🤖")
         except Exception as e:
             st.error(f"❌ Error initializing agent: {e}")
-            st.stop()
+            st.error("Falling back to rule-based agent...")
+            try:
+                from app.agents.scheduler_agent import SchedulerAgent
+                st.session_state.agent = SchedulerAgent(llm=None)
+                st.warning("⚠️ Using fallback rule-based assistant", icon="⚠️")
+            except Exception as e2:
+                st.error(f"❌ Critical error: {e2}")
+                st.stop()
     
     if 'messages' not in st.session_state:
         st.session_state.messages = []
