@@ -272,7 +272,8 @@ class MockLLMWithSimpleGemini:
                 model=self.model_name,
                 messages=messages,
                 temperature=0.7,
-                max_tokens=500
+                max_tokens=500,
+                max_retries=3  # Add retry logic for rate limiting
             )
             
             response = SimpleGeminiResponse(response_data)

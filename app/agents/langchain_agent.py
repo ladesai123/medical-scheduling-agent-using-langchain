@@ -122,7 +122,13 @@ class LangChainMedicalAgent:
                     logger.info("ChatOpenAI initialized successfully")
             except Exception as e:
                 logger.error(f"Failed to initialize {provider} LLM: {e}")
-                raise
+                # Initialize fallback when API key is invalid or API fails
+                logger.info("Initializing with fallback LLM wrapper")
+                self.llm = FallbackLLMWrapper()
+        elif llm is None:
+            # No API key provided, use fallback
+            logger.warning("No API key provided, using fallback LLM")
+            self.llm = FallbackLLMWrapper()
         else:
             self.llm = llm
         
@@ -532,8 +538,8 @@ class LangChainMedicalAgent:
     def _create_agent(self):
         """Create the LangChain agent with tools."""
         try:
-            # Define the prompt template
-            prompt = ChatPromptTemplate.from_messages([
+            # Define the prompt template for OpenAI tools agent
+            openai_prompt = ChatPromptTemplate.from_messages([
                 ("system", """You are a professional medical scheduling assistant for HealthCare+ Medical Center.
 
 Your responsibilities:
@@ -558,29 +564,74 @@ Use the available tools to search for patients, check doctor availability, book 
                 ("placeholder", "{agent_scratchpad}")
             ])
             
+            # Define the prompt template for React agent (with tools and tool_names)
+            react_prompt = ChatPromptTemplate.from_messages([
+                ("system", """You are a professional medical scheduling assistant for HealthCare+ Medical Center.
+
+Your responsibilities:
+1. Help patients schedule, reschedule, or cancel appointments
+2. Look up patient information and appointment history
+3. Collect and validate insurance information
+4. Provide doctor availability and schedule information
+5. Ensure accurate patient data collection (name, DOB, contact info)
+
+Key guidelines:
+- Always be professional, empathetic, and helpful
+- For new patients: collect full information (name, DOB, contact, insurance)
+- For returning patients: verify identity with name and DOB
+- New patient appointments are 60 minutes, returning patients are 30 minutes
+- Always confirm appointment details before booking
+- Ask for insurance information for all appointments
+- Be clear about next steps and what patients should expect
+
+You have access to the following tools:
+{tools}
+
+Tool names: {tool_names}
+
+Use the following format:
+
+Question: the input question you must answer
+Thought: you should always think about what to do
+Action: the action to take, should be one of [{tool_names}]
+Action Input: the input to the action
+Observation: the result of the action
+... (this Thought/Action/Action Input/Observation can repeat N times)
+Thought: I now know the final answer
+Final Answer: the final answer to the original input question
+"""),
+                ("human", "{input}"),
+                ("placeholder", "{agent_scratchpad}")
+            ])
+            
             # Create the agent - use different agent types based on provider
-            if self.provider == "gemini":
-                # For Gemini, we may need to use a different agent creation method
+            if isinstance(self.llm, FallbackLLMWrapper):
+                # For fallback LLM, create a simple fallback executor
+                logger.warning("Using fallback LLM, creating fallback agent executor")
+                agent_executor = FallbackAgentExecutor(self.tools)
+            elif self.provider == "gemini":
+                # For Gemini, try OpenAI tools agent first, then fall back to React agent
                 try:
                     # Try to use OpenAI tools agent anyway - it might work
-                    agent = create_openai_tools_agent(self.llm, self.tools, prompt)
+                    agent = create_openai_tools_agent(self.llm, self.tools, openai_prompt)
                 except Exception as e:
                     logger.warning(f"Could not create OpenAI tools agent for Gemini: {e}")
                     # Create a simple reactive agent as fallback
                     from langchain.agents import create_react_agent
-                    agent = create_react_agent(self.llm, self.tools, prompt)
+                    agent = create_react_agent(self.llm, self.tools, react_prompt)
             else:
                 # For OpenAI, use the standard OpenAI tools agent
-                agent = create_openai_tools_agent(self.llm, self.tools, prompt)
+                agent = create_openai_tools_agent(self.llm, self.tools, openai_prompt)
             
-            # Create agent executor
-            agent_executor = AgentExecutor(
-                agent=agent,
-                tools=self.tools,
-                verbose=True,
-                handle_parsing_errors=True,
-                max_iterations=10
-            )
+            # Create agent executor (only if not using fallback)
+            if not isinstance(self.llm, FallbackLLMWrapper):
+                agent_executor = AgentExecutor(
+                    agent=agent,
+                    tools=self.tools,
+                    verbose=True,
+                    handle_parsing_errors=True,
+                    max_iterations=10
+                )
             
             return agent_executor
             
@@ -622,6 +673,56 @@ Use the available tools to search for patients, check doctor availability, book 
             logger.info(f"Data saved to {filename}")
         except Exception as e:
             logger.error(f"Error saving {filename}: {e}")
+
+
+class FallbackAgentExecutor:
+    """Fallback agent executor that provides basic scheduling functionality."""
+    
+    def __init__(self, tools):
+        self.tools = tools
+        # Import the basic scheduler agent for fallback functionality
+        try:
+            from app.agents.scheduler_agent import SchedulerAgent
+            from app.config import get_llm
+            fallback_llm = get_llm()
+            self.scheduler_agent = SchedulerAgent(llm=fallback_llm)
+        except Exception as e:
+            logger.warning(f"Could not initialize fallback scheduler agent: {e}")
+            self.scheduler_agent = None
+    
+    def invoke(self, inputs):
+        """Handle user inputs using the basic scheduler agent."""
+        try:
+            if self.scheduler_agent:
+                response = self.scheduler_agent.generate_response(inputs.get("input", ""))
+                return {"output": response}
+            else:
+                return {"output": "I'm currently in offline mode. Basic scheduling functionality is available through the main application."}
+        except Exception as e:
+            logger.error(f"Fallback agent error: {e}")
+            return {"output": "I'm experiencing technical difficulties. Please try again or use the basic scheduler."}
+
+
+class FallbackLLMWrapper:
+    """Fallback LLM wrapper that provides basic responses when no API is available."""
+    
+    def __init__(self):
+        self.model_name = "fallback-mock"
+        self.temperature = 0.3
+        
+    def bind(self, **kwargs):
+        """Mock bind method for LangChain compatibility."""
+        return self
+        
+    def invoke(self, messages):
+        """Mock invoke method that returns a basic response."""
+        from langchain_core.messages import AIMessage
+        return AIMessage(content="I'm currently running in offline mode. I can help with basic appointment scheduling using our local system. What would you like to do?")
+        
+    def generate(self, messages):
+        """Mock generate method."""
+        from langchain_core.outputs import LLMResult, Generation
+        return LLMResult(generations=[[Generation(text="I'm here to help with appointment scheduling.")]])
 
 
 class GeminiLangChainWrapper:
