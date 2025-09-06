@@ -9,7 +9,7 @@
     "status": "scheduled",
     "created_at": "2025-09-06T06:17:08.002633",
     "type": "new_patient",
-    "rescheduled_at": "2025-09-06T06:29:02.646602"
+    "rescheduled_at": "2025-09-06T08:28:46.313663"
   },
   {
     "appointment_id": "APT0002",
@@ -21,7 +21,7 @@
     "status": "cancelled",
     "created_at": "2025-09-06T06:18:17.222379",
     "type": "new_patient",
-    "cancelled_at": "2025-09-06T06:29:02.645945"
+    "cancelled_at": "2025-09-06T08:28:46.312965"
   },
   {
     "appointment_id": "APT0003",
