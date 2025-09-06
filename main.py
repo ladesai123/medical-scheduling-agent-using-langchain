@@ -76,7 +76,8 @@ def run_cli():
     """Run the application in CLI mode."""
     try:
         print("Starting Medical Scheduling Agent in CLI mode...")
-        print("Type 'exit' to quit.")
+        print("Type 'exit', 'quit', 'q', or 'bye' to quit.")
+        print("=" * 50)
         
         # Import here to avoid circular imports
         from app.config import get_llm
@@ -86,19 +87,47 @@ def run_cli():
         llm = get_llm()
         agent = SchedulerAgent(llm=llm)
         
+        # Display initial greeting
+        print("\nAgent: Hello! Welcome to our medical scheduling system. I'm here to help you schedule an appointment. How can I assist you today?")
+        
+        conversation_count = 0
+        max_conversations = 50  # Prevent infinite loops
+        
         # Simple CLI interaction loop
-        while True:
-            user_input = input("\nYou: ")
-            
-            if user_input.lower() in ["exit", "quit", "q"]:
-                print("Goodbye!")
+        while conversation_count < max_conversations:
+            try:
+                user_input = input("\nYou: ").strip()
+                
+                # Handle empty input
+                if not user_input:
+                    print("Please enter a message or type 'exit' to quit.")
+                    continue
+                
+                # Check for exit commands
+                if user_input.lower() in ["exit", "quit", "q", "bye", "goodbye"]:
+                    print("\nAgent: Thank you for using our medical scheduling system. Goodbye!")
+                    break
+                
+                # Generate response
+                response = agent.generate_response(user_input)
+                print(f"\nAgent: {response}")
+                
+                conversation_count += 1
+                
+            except (EOFError, KeyboardInterrupt):
+                print("\n\nAgent: Thank you for using our medical scheduling system. Goodbye!")
                 break
-            
-            response = agent.generate_response(user_input)
-            print(f"\nAgent: {response}")
+            except Exception as e:
+                logger.error(f"Error processing input: {e}")
+                print(f"\nAgent: I apologize, but I encountered an error. Please try again or type 'exit' to quit.")
+                
+        if conversation_count >= max_conversations:
+            print(f"\nAgent: We've reached the maximum number of exchanges ({max_conversations}). Thank you for using our service!")
             
     except Exception as e:
         logger.error(f"Error in CLI mode: {e}")
+        print(f"Error starting CLI mode: {e}")
+        print("Please check your configuration and try again.")
         raise
 
 
