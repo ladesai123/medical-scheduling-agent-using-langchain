@@ -5,6 +5,11 @@ import json
 import urllib.request
 import urllib.parse
 import urllib.error
+import time
+import random
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class SimpleGeminiClient:
@@ -14,8 +19,8 @@ class SimpleGeminiClient:
         self.api_key = api_key
         self.base_url = "https://generativelanguage.googleapis.com/v1beta"
     
-    def create_completion(self, model: str = "gemini-1.5-flash", messages: list = None, temperature: float = 0.7, max_tokens: int = 500):
-        """Create a chat completion using the Gemini API."""
+    def create_completion(self, model: str = "gemini-1.5-flash", messages: list = None, temperature: float = 0.7, max_tokens: int = 500, max_retries: int = 3):
+        """Create a chat completion using the Gemini API with retry logic."""
         if messages is None:
             messages = []
             
@@ -67,37 +72,71 @@ class SimpleGeminiClient:
                 "parts": [{"text": system_instruction}]
             }
         
-        try:
-            # Create request
-            request = urllib.request.Request(
-                url,
-                data=json.dumps(data).encode('utf-8'),
-                headers=headers,
-                method='POST'
-            )
-            
-            # Make request
-            with urllib.request.urlopen(request, timeout=30) as response:
-                response_data = json.loads(response.read().decode('utf-8'))
+        
+        # Make the API request with retry logic
+        for attempt in range(max_retries + 1):
+            try:
+                # Create request
+                request = urllib.request.Request(
+                    url,
+                    data=json.dumps(data).encode('utf-8'),
+                    headers=headers,
+                    method='POST'
+                )
                 
-                # Convert Gemini response to OpenAI-like format for compatibility
-                openai_format = self._convert_to_openai_format(response_data)
-                return openai_format
+                # Make request
+                with urllib.request.urlopen(request, timeout=30) as response:
+                    response_data = json.loads(response.read().decode('utf-8'))
+                    
+                    # Convert Gemini response to OpenAI-like format for compatibility
+                    openai_format = self._convert_to_openai_format(response_data)
+                    logger.info(f"Gemini API call successful on attempt {attempt + 1}")
+                    return openai_format
+                    
+            except urllib.error.HTTPError as e:
+                error_body = e.read().decode('utf-8') if hasattr(e, 'read') else str(e)
                 
-        except urllib.error.HTTPError as e:
-            error_body = e.read().decode('utf-8') if hasattr(e, 'read') else str(e)
-            if e.code == 429:
-                raise Exception(f"Rate limit exceeded (429): {error_body}")
-            elif e.code == 401:
-                raise Exception(f"Authentication failed (401): Check your API key")
-            elif e.code == 403:
-                raise Exception(f"Forbidden (403): {error_body}")
-            else:
-                raise Exception(f"Gemini API error {e.code}: {error_body}")
-        except urllib.error.URLError as e:
-            raise Exception(f"Network error: {e}")
-        except Exception as e:
-            raise Exception(f"Request failed: {e}")
+                if e.code == 429:  # Rate limit exceeded
+                    if attempt < max_retries:
+                        # Exponential backoff with jitter
+                        delay = (2 ** attempt) + random.uniform(0, 1)
+                        logger.warning(f"Rate limit exceeded (attempt {attempt + 1}/{max_retries + 1}). Retrying in {delay:.2f} seconds...")
+                        time.sleep(delay)
+                        continue
+                    else:
+                        logger.error(f"Rate limit exceeded after {max_retries + 1} attempts")
+                        raise Exception(f"Rate limit exceeded (429) - max retries reached: {error_body}")
+                elif e.code == 401:
+                    raise Exception(f"Authentication failed (401): Check your API key")
+                elif e.code == 403:
+                    raise Exception(f"Forbidden (403): {error_body}")
+                else:
+                    if attempt < max_retries and e.code >= 500:  # Server errors - retry
+                        delay = (2 ** attempt) + random.uniform(0, 1)
+                        logger.warning(f"Server error {e.code} (attempt {attempt + 1}/{max_retries + 1}). Retrying in {delay:.2f} seconds...")
+                        time.sleep(delay)
+                        continue
+                    else:
+                        raise Exception(f"Gemini API error {e.code}: {error_body}")
+            except urllib.error.URLError as e:
+                if attempt < max_retries:
+                    delay = (2 ** attempt) + random.uniform(0, 1)
+                    logger.warning(f"Network error (attempt {attempt + 1}/{max_retries + 1}). Retrying in {delay:.2f} seconds...")
+                    time.sleep(delay)
+                    continue
+                else:
+                    raise Exception(f"Network error after {max_retries + 1} attempts: {e}")
+            except Exception as e:
+                if attempt < max_retries:
+                    delay = (2 ** attempt) + random.uniform(0, 1)
+                    logger.warning(f"Request failed (attempt {attempt + 1}/{max_retries + 1}). Retrying in {delay:.2f} seconds...")
+                    time.sleep(delay)
+                    continue
+                else:
+                    raise Exception(f"Request failed after {max_retries + 1} attempts: {e}")
+        
+        # This should never be reached, but just in case
+        raise Exception("Unexpected error in retry logic")
     
     def _convert_to_openai_format(self, gemini_response):
         """Convert Gemini API response to OpenAI-compatible format."""

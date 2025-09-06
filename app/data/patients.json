@@ -1376,5 +1376,31 @@
       "phone": ""
     },
     "is_new_patient": true
+  },
+  {
+    "patient_id": "P0054",
+    "first_name": "Alice",
+    "last_name": "Smith",
+    "email": "My email is alice.smith@email.com",
+    "phone": "",
+    "date_of_birth": "",
+    "address": {
+      "street": "",
+      "city": "",
+      "state": "",
+      "zip_code": ""
+    },
+    "insurance": {
+      "provider": "My insurance is Aetna",
+      "policy_number": "",
+      "group_number": ""
+    },
+    "medical_history": [],
+    "emergency_contact": {
+      "name": "",
+      "relationship": "",
+      "phone": ""
+    },
+    "is_new_patient": true
   }
 ]
