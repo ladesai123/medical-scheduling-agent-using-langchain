@@ -46,32 +46,52 @@ def get_llm():
         # Load environment first
         load_environment()
         
-        # Try to use OpenAI if available
+        # Try to use LangChain agent first
         try:
-            from openai import OpenAI
+            from app.agents.langchain_agent import LangChainMedicalAgent
             api_key = get_openai_api_key()
             
-            # Create OpenAI client with proper initialization
-            client = OpenAI(api_key=api_key)
-            logger.info("OpenAI client initialized successfully")
-            return MockLLMWithOpenAI(client)
+            # Create LangChain agent
+            agent = LangChainMedicalAgent(api_key=api_key)
+            logger.info("LangChain Medical Agent initialized successfully")
+            return agent
             
-        except ImportError:
-            # Try our simple OpenAI client
-            try:
-                from app.utils.simple_openai import SimpleOpenAIClient
-                api_key = get_openai_api_key()
-                client = SimpleOpenAIClient(api_key)
-                logger.info("Simple OpenAI client initialized successfully")
-                return MockLLMWithSimpleOpenAI(client)
-            except Exception as e:
-                logger.warning(f"Could not initialize simple OpenAI client: {e}")
-                logger.info("Falling back to mock LLM")
-                return MockLLM()
         except Exception as e:
-            logger.error(f"Error initializing OpenAI client: {e}")
-            logger.info("Falling back to mock LLM")
-            return MockLLM()
+            logger.warning(f"LangChain agent failed: {e}")
+            # Fall back to enhanced mock agent
+            try:
+                from app.agents.mock_langchain_agent import MockLangChainAgent
+                agent = MockLangChainAgent()
+                logger.info("MockLangChain Medical Agent initialized successfully")
+                return agent
+            except Exception as e2:
+                logger.warning(f"Mock LangChain agent failed: {e2}")
+                # Fall back to OpenAI client
+                try:
+                    from openai import OpenAI
+                    api_key = get_openai_api_key()
+                    
+                    # Create OpenAI client with proper initialization
+                    client = OpenAI(api_key=api_key)
+                    logger.info("OpenAI client initialized successfully")
+                    return MockLLMWithOpenAI(client)
+                    
+                except ImportError:
+                    # Try our simple OpenAI client
+                    try:
+                        from app.utils.simple_openai import SimpleOpenAIClient
+                        api_key = get_openai_api_key()
+                        client = SimpleOpenAIClient(api_key)
+                        logger.info("Simple OpenAI client initialized successfully")
+                        return MockLLMWithSimpleOpenAI(client)
+                    except Exception as e:
+                        logger.warning(f"Could not initialize simple OpenAI client: {e}")
+                        logger.info("Falling back to mock LLM")
+                        return MockLLM()
+                except Exception as e3:
+                    logger.error(f"Error initializing OpenAI client fallback: {e3}")
+                    logger.info("Falling back to mock LLM")
+                    return MockLLM()
             
     except Exception as e:
         logger.error(f"Error in get_llm: {e}")

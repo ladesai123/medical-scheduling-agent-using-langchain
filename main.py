@@ -82,10 +82,19 @@ def run_cli():
         # Import here to avoid circular imports
         from app.config import get_llm
         from app.agents.scheduler_agent import SchedulerAgent
+        from app.agents.langchain_agent import LangChainMedicalAgent
+        from app.agents.mock_langchain_agent import MockLangChainAgent
         
         # Initialize agent
         llm = get_llm()
-        agent = SchedulerAgent(llm=llm)
+        
+        # Check if we got a LangChain agent directly
+        if isinstance(llm, (LangChainMedicalAgent, MockLangChainAgent)):
+            agent = llm
+            logger.info(f"Using {type(llm).__name__} for CLI")
+        else:
+            agent = SchedulerAgent(llm=llm)
+            logger.info("Using SchedulerAgent with LLM for CLI")
         
         # Display initial greeting
         print("\nAgent: Hello! Welcome to our medical scheduling system. I'm here to help you schedule an appointment. How can I assist you today?")

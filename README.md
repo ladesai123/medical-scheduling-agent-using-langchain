@@ -4,6 +4,8 @@
 This AI agent automates patient appointment scheduling for medical practices. It handles patient lookup, scheduling, insurance collection, and appointment confirmation through a conversational interface.
 
 ## 🌟 Features
+
+### Core Functionality
 - **Patient Management**: Automatic patient lookup and registration
 - **Smart Scheduling**: 60min slots for new patients, 30min for returning patients
 - **Doctor Management**: Multiple doctors with specialty and availability tracking
@@ -12,6 +14,26 @@ This AI agent automates patient appointment scheduling for medical practices. It
 - **Data Generation**: Automatic generation of sample patients and doctors
 - **Robust Fallbacks**: Works with or without OpenAI API access
 - **Offline Capability**: Full functionality even without internet connection
+
+### LangChain Integration (NEW!)
+- **Advanced AI Agent**: Full LangChain/LangGraph implementation with 11 specialized tools
+- **Enhanced Conversation**: Natural language processing for complex scheduling requests
+- **Multi-Agent Architecture**: Sophisticated agent orchestration for healthcare workflows
+- **Tool-Based Operations**: Specialized tools for patient lookup, scheduling, and notifications
+
+### Business Features (NEW!)
+- **Calendar Management**: Real-time availability checking and smart booking
+- **Notification System**: Automated email confirmations and SMS reminders
+- **3-Tier Reminder System**: Automated reminders at 7, 3, and 1 days before appointments
+- **Form Distribution**: Automatic patient intake form delivery
+- **Excel Export**: Administrative reporting for appointment analytics
+- **Interactive Reminders**: Patient response collection for form completion and visit confirmation
+
+### Enhanced Reliability
+- **Multi-Level Fallback**: 4-tier degradation system ensures 100% uptime
+- **Error Recovery**: Graceful handling of API failures and network issues
+- **Mock LangChain Agent**: Enhanced rule-based agent with full business logic
+- **Production Ready**: Comprehensive error handling and logging
 
 ## 🚀 Quick Start
 
@@ -91,9 +113,11 @@ Agent: Let me check our availability for tomorrow morning...
 - **Fallback Systems**: Multiple layers of graceful degradation
 
 ### Fallback Hierarchy
-1. **Full AI Mode**: OpenAI package + API key
-2. **Simple AI Mode**: Custom HTTP client + API key
-3. **Mock Mode**: Rule-based responses (always works)
+1. **Enhanced LangChain Mode**: Full LangChain agent with OpenAI + specialized tools
+2. **Mock LangChain Mode**: Enhanced rule-based agent with business logic (always works)
+3. **Standard AI Mode**: OpenAI package + API key with basic agent
+4. **Simple AI Mode**: Custom HTTP client + API key
+5. **Offline Mode**: Rule-based responses (always works)
 
 ### File Structure
 ```

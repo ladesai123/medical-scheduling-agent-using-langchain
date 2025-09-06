@@ -1,0 +1,564 @@
+"""
+LangChain-powered Medical Scheduling Agent
+Uses LangChain tools and agents for enhanced conversation and functionality.
+"""
+
+import json
+import os
+import logging
+from datetime import datetime, timedelta, date
+from typing import Dict, List, Any, Optional
+from email_validator import validate_email, EmailNotValidError
+
+from langchain.agents import AgentExecutor, create_openai_tools_agent
+from langchain.tools import tool
+from langchain_openai import ChatOpenAI
+from langchain.prompts import ChatPromptTemplate
+from langchain_core.messages import HumanMessage, SystemMessage
+
+from app.utils.calendar_manager import CalendarManager
+from app.utils.notification_manager import NotificationManager
+
+logger = logging.getLogger(__name__)
+
+
+class LangChainMedicalAgent:
+    """LangChain-powered Medical Scheduling Agent with advanced tools."""
+    
+    def __init__(self, llm=None, api_key=None):
+        """Initialize the LangChain agent with tools."""
+        self.data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+        self.conversation_state = {}
+        
+        # Initialize managers
+        self.calendar_manager = CalendarManager(self.data_dir)
+        self.notification_manager = NotificationManager(self.data_dir)
+        
+        # Initialize LLM
+        if llm is None and api_key:
+            try:
+                self.llm = ChatOpenAI(
+                    model="gpt-3.5-turbo",
+                    temperature=0.3,
+                    api_key=api_key
+                )
+                logger.info("ChatOpenAI initialized successfully")
+            except Exception as e:
+                logger.error(f"Failed to initialize ChatOpenAI: {e}")
+                raise
+        else:
+            self.llm = llm
+        
+        # Initialize tools and agent
+        self.tools = self._create_tools()
+        self.agent_executor = self._create_agent()
+        
+        logger.info("LangChainMedicalAgent initialized")
+    
+    def _create_tools(self):
+        """Create LangChain tools for medical scheduling."""
+        
+        @tool
+        def search_patient(name: str) -> str:
+            """Search for a patient by name in the database."""
+            try:
+                patients = self._load_data("patients.json")
+                name_parts = name.lower().split()
+                
+                matching_patients = []
+                for patient in patients:
+                    patient_name = f"{patient['first_name']} {patient['last_name']}".lower()
+                    if all(part in patient_name for part in name_parts):
+                        matching_patients.append(patient)
+                
+                if matching_patients:
+                    if len(matching_patients) == 1:
+                        patient = matching_patients[0]
+                        return f"Found patient: {patient['first_name']} {patient['last_name']}, DOB: {patient['date_of_birth']}, Patient ID: {patient['patient_id']}"
+                    else:
+                        result = f"Found {len(matching_patients)} patients with similar names:\n"
+                        for i, patient in enumerate(matching_patients[:3]):  # Show max 3
+                            result += f"{i+1}. {patient['first_name']} {patient['last_name']}, DOB: {patient['date_of_birth']}\n"
+                        return result
+                else:
+                    return f"No patient found with name '{name}'. This appears to be a new patient."
+            except Exception as e:
+                logger.error(f"Error searching patient: {e}")
+                return f"Error searching for patient: {e}"
+        
+        @tool
+        def get_available_doctors(specialty: str = "") -> str:
+            """Get list of available doctors, optionally filtered by specialty."""
+            try:
+                doctors = self._load_data("doctors.json")
+                
+                if specialty:
+                    filtered_doctors = [d for d in doctors if specialty.lower() in d['specialty'].lower()]
+                else:
+                    filtered_doctors = doctors
+                
+                if not filtered_doctors:
+                    return f"No doctors found for specialty: {specialty}"
+                
+                result = f"Available doctors" + (f" for {specialty}" if specialty else "") + ":\n"
+                for doctor in filtered_doctors[:5]:  # Show max 5
+                    result += f"- Dr. {doctor['first_name']} {doctor['last_name']} ({doctor['specialty']})\n"
+                
+                return result
+            except Exception as e:
+                logger.error(f"Error getting doctors: {e}")
+                return f"Error retrieving doctors: {e}"
+        
+        @tool
+        def check_doctor_availability(doctor_name: str, date: str) -> str:
+            """Check if a doctor is available on a specific date."""
+            try:
+                doctors = self._load_data("doctors.json")
+                appointments = self._load_data("appointments.json")
+                
+                # Find doctor
+                doctor = None
+                for d in doctors:
+                    if doctor_name.lower() in f"{d['first_name']} {d['last_name']}".lower():
+                        doctor = d
+                        break
+                
+                if not doctor:
+                    return f"Doctor '{doctor_name}' not found."
+                
+                # Check existing appointments for that date
+                existing_appointments = [
+                    a for a in appointments 
+                    if a['doctor_id'] == doctor['doctor_id'] and a['date'] == date
+                ]
+                
+                # Simulate available time slots (9 AM - 5 PM, 1-hour slots)
+                available_slots = []
+                for hour in range(9, 17):
+                    time_slot = f"{hour:02d}:00"
+                    if not any(a['time'] == time_slot for a in existing_appointments):
+                        available_slots.append(time_slot)
+                
+                if available_slots:
+                    return f"Dr. {doctor['first_name']} {doctor['last_name']} is available on {date} at: {', '.join(available_slots[:5])}"
+                else:
+                    return f"Dr. {doctor['first_name']} {doctor['last_name']} has no available slots on {date}."
+                    
+            except Exception as e:
+                logger.error(f"Error checking availability: {e}")
+                return f"Error checking doctor availability: {e}"
+        
+        @tool
+        def book_appointment_enhanced(patient_name: str, doctor_name: str, date: str, time: str, patient_type: str = "returning", patient_email: str = "", patient_phone: str = "") -> str:
+            """Book an appointment with enhanced calendar integration and notifications."""
+            try:
+                # Load data
+                patients = self._load_data("patients.json")
+                doctors = self._load_data("doctors.json")
+                
+                # Find patient
+                patient = None
+                for p in patients:
+                    if patient_name.lower() in f"{p['first_name']} {p['last_name']}".lower():
+                        patient = p
+                        break
+                
+                if not patient:
+                    return f"Patient '{patient_name}' not found. Please register first."
+                
+                # Find doctor
+                doctor = None
+                for d in doctors:
+                    if doctor_name.lower() in f"{d['first_name']} {d['last_name']}".lower():
+                        doctor = d
+                        break
+                
+                if not doctor:
+                    return f"Doctor '{doctor_name}' not found."
+                
+                # Update patient contact info if provided
+                if patient_email:
+                    patient['email'] = patient_email
+                if patient_phone:
+                    patient['phone'] = patient_phone
+                
+                # Determine duration
+                duration = 60 if patient_type == "new" else 30
+                
+                # Use calendar manager to book
+                patient_data = {
+                    'patient_id': patient['patient_id'],
+                    'name': f"{patient['first_name']} {patient['last_name']}",
+                    'type': patient_type,
+                    'notes': f"Patient type: {patient_type}"
+                }
+                
+                booking_result = self.calendar_manager.book_slot(
+                    doctor['doctor_id'], date, time, patient_data, duration
+                )
+                
+                if not booking_result.get('success'):
+                    return f"❌ {booking_result.get('message', 'Booking failed')}"
+                
+                appointment = booking_result['appointment']
+                
+                # Send confirmation email
+                confirmation_result = self.notification_manager.send_confirmation_email(appointment, patient)
+                
+                # Send intake forms
+                forms_result = self.notification_manager.send_intake_forms(appointment, patient)
+                
+                # Schedule reminders
+                self.notification_manager.schedule_reminders(appointment, patient)
+                
+                result_message = f"✅ Appointment booked successfully!\n\n"
+                result_message += f"**Appointment Details:**\n"
+                result_message += f"• ID: {appointment['appointment_id']}\n"
+                result_message += f"• Patient: {patient['first_name']} {patient['last_name']}\n"
+                result_message += f"• Doctor: {appointment['doctor_name']} ({appointment['specialty']})\n"
+                result_message += f"• Date: {date}\n"
+                result_message += f"• Time: {time}\n"
+                result_message += f"• Duration: {duration} minutes\n"
+                result_message += f"• Location: {appointment.get('location', 'Main Office')}\n\n"
+                
+                if confirmation_result.get('success'):
+                    result_message += f"📧 Confirmation email sent to: {patient.get('email', 'N/A')}\n"
+                
+                if forms_result.get('success'):
+                    result_message += f"📋 Intake forms sent to patient\n"
+                
+                result_message += f"🕐 Automatic reminders scheduled (7, 3, and 1 days before)\n"
+                
+                return result_message
+                
+            except Exception as e:
+                logger.error(f"Error booking appointment: {e}")
+                return f"Error booking appointment: {e}"
+        
+        @tool 
+        def get_calendar_availability(doctor_name: str, date: str, duration_minutes: int = 30) -> str:
+            """Get available time slots for a doctor on a specific date."""
+            try:
+                doctors = self._load_data("doctors.json")
+                
+                # Find doctor
+                doctor = None
+                for d in doctors:
+                    if doctor_name.lower() in f"{d['first_name']} {d['last_name']}".lower():
+                        doctor = d
+                        break
+                
+                if not doctor:
+                    return f"Doctor '{doctor_name}' not found."
+                
+                # Get available slots
+                available_slots = self.calendar_manager.get_available_slots(
+                    doctor['doctor_id'], date, duration_minutes
+                )
+                
+                if not available_slots:
+                    return f"No available slots for {doctor['first_name']} {doctor['last_name']} on {date}"
+                
+                result = f"Available slots for Dr. {doctor['first_name']} {doctor['last_name']} on {date}:\n"
+                for slot in available_slots[:8]:  # Show max 8 slots
+                    result += f"• {slot}\n"
+                
+                if len(available_slots) > 8:
+                    result += f"... and {len(available_slots) - 8} more slots available"
+                
+                return result
+                
+            except Exception as e:
+                logger.error(f"Error getting availability: {e}")
+                return f"Error checking availability: {e}"
+        
+        @tool
+        def reschedule_appointment(appointment_id: str, new_date: str, new_time: str) -> str:
+            """Reschedule an existing appointment to a new date and time."""
+            try:
+                result = self.calendar_manager.reschedule_appointment(appointment_id, new_date, new_time)
+                
+                if not result.get('success'):
+                    return f"❌ {result.get('message', 'Rescheduling failed')}"
+                
+                appointment = result['appointment']
+                
+                # Load patient data for notifications
+                patients = self._load_data("patients.json")
+                patient = next((p for p in patients if p['patient_id'] == appointment['patient_id']), None)
+                
+                if patient:
+                    # Send rescheduling confirmation
+                    confirmation_result = self.notification_manager.send_confirmation_email(appointment, patient)
+                    
+                    # Reschedule reminders
+                    self.notification_manager.schedule_reminders(appointment, patient)
+                
+                return f"✅ {result.get('message', 'Appointment rescheduled successfully')}\n\n" \
+                       f"📧 New confirmation sent to patient\n" \
+                       f"🕐 Reminders updated for new date"
+                
+            except Exception as e:
+                logger.error(f"Error rescheduling appointment: {e}")
+                return f"Error rescheduling appointment: {e}"
+        
+        @tool
+        def cancel_appointment(appointment_id: str, reason: str = "") -> str:
+            """Cancel an existing appointment."""
+            try:
+                result = self.calendar_manager.cancel_appointment(appointment_id, reason)
+                
+                if not result.get('success'):
+                    return f"❌ {result.get('message', 'Cancellation failed')}"
+                
+                appointment = result['appointment']
+                
+                # Load patient data
+                patients = self._load_data("patients.json")
+                patient = next((p for p in patients if p['patient_id'] == appointment['patient_id']), None)
+                
+                if patient:
+                    # Send cancellation confirmation (simulated)
+                    logger.info(f"📧 Cancellation confirmation sent to {patient.get('email', 'N/A')}")
+                    print(f"\n📧 Cancellation confirmation sent to: {patient.get('first_name', '')} {patient.get('last_name', '')}")
+                
+                return f"✅ {result.get('message', 'Appointment cancelled successfully')}\n\n" \
+                       f"📧 Cancellation confirmation sent to patient\n" \
+                       f"Reason: {reason or 'No reason provided'}"
+                
+            except Exception as e:
+                logger.error(f"Error cancelling appointment: {e}")
+                return f"Error cancelling appointment: {e}"
+        
+        @tool
+        def export_appointments_to_excel(start_date: str = "", end_date: str = "") -> str:
+            """Export appointments to Excel file for admin review."""
+            try:
+                filepath = self.calendar_manager.export_to_excel(start_date, end_date)
+                
+                if filepath:
+                    return f"✅ Appointments exported successfully to: {filepath}\n\n" \
+                           f"The Excel file contains all appointment data " \
+                           f"{'for the specified date range' if start_date and end_date else 'for all dates'}."
+                else:
+                    return "❌ Failed to export appointments to Excel."
+                
+            except Exception as e:
+                logger.error(f"Error exporting to Excel: {e}")
+                return f"Error exporting appointments: {e}"
+        
+        @tool
+        def send_reminder_now(appointment_id: str, reminder_type: str = "first") -> str:
+            """Send a reminder for a specific appointment immediately."""
+            try:
+                # Load data
+                appointments = self._load_data("appointments.json")
+                patients = self._load_data("patients.json")
+                
+                # Find appointment
+                appointment = next((a for a in appointments if a['appointment_id'] == appointment_id), None)
+                if not appointment:
+                    return f"Appointment {appointment_id} not found."
+                
+                # Find patient
+                patient = next((p for p in patients if p['patient_id'] == appointment['patient_id']), None)
+                if not patient:
+                    return f"Patient not found for appointment {appointment_id}."
+                
+                # Send reminder
+                if reminder_type in ["second", "third"]:
+                    # Interactive reminder
+                    result = self.notification_manager.send_interactive_reminder(appointment, patient, reminder_type)
+                else:
+                    # Regular reminder
+                    email_result = self.notification_manager.send_reminder_email(appointment, patient, reminder_type)
+                    sms_result = self.notification_manager.send_sms_reminder(appointment, patient, reminder_type)
+                    
+                    result = {
+                        "success": email_result.get('success') or sms_result.get('success'),
+                        "message": f"Email: {email_result.get('message', 'Failed')}, SMS: {sms_result.get('message', 'Failed')}"
+                    }
+                
+                if result.get('success'):
+                    return f"✅ {reminder_type.title()} reminder sent successfully for appointment {appointment_id}"
+                else:
+                    return f"❌ Failed to send reminder: {result.get('message', 'Unknown error')}"
+                
+            except Exception as e:
+                logger.error(f"Error sending reminder: {e}")
+                return f"Error sending reminder: {e}"
+        
+        @tool
+        def validate_insurance(carrier: str, member_id: str, group_number: str = "") -> str:
+            """Validate insurance information."""
+            try:
+                # Simple validation logic
+                if not carrier or len(carrier) < 3:
+                    return "❌ Invalid insurance carrier name."
+                
+                if not member_id or len(member_id) < 5:
+                    return "❌ Invalid member ID. Must be at least 5 characters."
+                
+                # Simulate insurance validation
+                valid_carriers = [
+                    "blue cross", "aetna", "cigna", "united healthcare", "humana",
+                    "kaiser", "anthem", "bcbs", "medicare", "medicaid"
+                ]
+                
+                if any(vc in carrier.lower() for vc in valid_carriers):
+                    return f"✅ Insurance validated: {carrier}, Member ID: {member_id}" + (f", Group: {group_number}" if group_number else "")
+                else:
+                    return f"⚠️ Insurance carrier '{carrier}' not recognized. Please verify spelling."
+                    
+            except Exception as e:
+                logger.error(f"Error validating insurance: {e}")
+                return f"Error validating insurance: {e}"
+        
+        @tool
+        def get_patient_appointments(patient_name: str) -> str:
+            """Get all appointments for a specific patient."""
+            try:
+                appointments = self._load_data("appointments.json")
+                
+                patient_appointments = [
+                    a for a in appointments 
+                    if patient_name.lower() in a['patient_name'].lower()
+                ]
+                
+                if not patient_appointments:
+                    return f"No appointments found for {patient_name}."
+                
+                result = f"Appointments for {patient_name}:\n"
+                for apt in patient_appointments:
+                    result += f"- {apt['appointment_id']}: {apt['date']} at {apt['time']} with {apt.get('doctor_name', 'Unknown Doctor')} ({apt['status']})\n"
+                
+                return result
+                
+            except Exception as e:
+                logger.error(f"Error getting patient appointments: {e}")
+                return f"Error retrieving appointments: {e}"
+        
+        return [
+            search_patient,
+            get_available_doctors,
+            check_doctor_availability,
+            book_appointment_enhanced,
+            get_calendar_availability,
+            reschedule_appointment,
+            cancel_appointment,
+            validate_insurance,
+            get_patient_appointments,
+            export_appointments_to_excel,
+            send_reminder_now
+        ]
+    
+    def _create_agent(self):
+        """Create the LangChain agent with tools."""
+        try:
+            # Define the prompt template
+            prompt = ChatPromptTemplate.from_messages([
+                ("system", """You are a professional medical scheduling assistant for HealthCare+ Medical Center.
+
+Your responsibilities:
+1. Help patients schedule, reschedule, or cancel appointments
+2. Look up patient information and appointment history
+3. Collect and validate insurance information
+4. Provide doctor availability and schedule information
+5. Ensure accurate patient data collection (name, DOB, contact info)
+
+Key guidelines:
+- Always be professional, empathetic, and helpful
+- For new patients: collect full information (name, DOB, contact, insurance)
+- For returning patients: verify identity with name and DOB
+- New patient appointments are 60 minutes, returning patients are 30 minutes
+- Always confirm appointment details before booking
+- Ask for insurance information for all appointments
+- Be clear about next steps and what patients should expect
+
+Use the available tools to search for patients, check doctor availability, book appointments, and validate insurance information.
+"""),
+                ("human", "{input}"),
+                ("placeholder", "{agent_scratchpad}")
+            ])
+            
+            # Create the agent
+            agent = create_openai_tools_agent(self.llm, self.tools, prompt)
+            
+            # Create agent executor
+            agent_executor = AgentExecutor(
+                agent=agent,
+                tools=self.tools,
+                verbose=True,
+                handle_parsing_errors=True,
+                max_iterations=10
+            )
+            
+            return agent_executor
+            
+        except Exception as e:
+            logger.error(f"Error creating agent: {e}")
+            raise
+    
+    def generate_response(self, user_input: str) -> str:
+        """Generate a response using the LangChain agent."""
+        try:
+            response = self.agent_executor.invoke({"input": user_input})
+            return response.get("output", "I apologize, but I couldn't process your request.")
+            
+        except Exception as e:
+            logger.error(f"Error generating response: {e}")
+            return f"I apologize, but I encountered an error: {e}. Please try again."
+    
+    def _load_data(self, filename: str) -> List[Dict]:
+        """Load data from JSON file."""
+        file_path = os.path.join(self.data_dir, filename)
+        try:
+            if os.path.exists(file_path):
+                with open(file_path, 'r') as f:
+                    return json.load(f)
+            else:
+                logger.warning(f"Data file {file_path} not found")
+                return []
+        except Exception as e:
+            logger.error(f"Error loading {filename}: {e}")
+            return []
+    
+    def _save_data(self, filename: str, data: List[Dict]):
+        """Save data to JSON file."""
+        file_path = os.path.join(self.data_dir, filename)
+        try:
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            with open(file_path, 'w') as f:
+                json.dump(data, f, indent=2)
+            logger.info(f"Data saved to {filename}")
+        except Exception as e:
+            logger.error(f"Error saving {filename}: {e}")
+
+if __name__ == "__main__":
+    # Test the LangChain agent
+    print("Testing LangChain Medical Agent...")
+    
+    try:
+        # Get API key from environment
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            print("OPENAI_API_KEY not found. Please set it in your .env file.")
+            exit(1)
+        
+        agent = LangChainMedicalAgent(api_key=api_key)
+        
+        # Test conversation
+        test_inputs = [
+            "Hello, I need to schedule an appointment",
+            "My name is John Smith and I need to see a cardiologist",
+            "How about next Monday at 2 PM?",
+            "My insurance is Blue Cross, member ID is ABC123456"
+        ]
+        
+        for test_input in test_inputs:
+            print(f"\nUser: {test_input}")
+            response = agent.generate_response(test_input)
+            print(f"Agent: {response}")
+            
+    except Exception as e:
+        print(f"Error: {e}")
